@@ -1,135 +1,235 @@
-import Data.Time (Day, defaultTimeLocale, parseTimeM)
-import Data.List (intercalate)
-import Text.Read (readMaybe)
-import Data.Char (toLower)
+import Data.List (find)
+import Data.Char (isDigit)
 
--- Definição do tipo para Gênero
-data Gender = Male | Female | Other deriving (Show, Read, Enum, Bounded)
+# As descrições das funções estão todas na documentação do código
 
--- Definição do tipo para o Tipo de Desastre
-data DisasterType = Earthquake | Flood | Hurricane | OtherDisaster deriving (Show, Read, Enum, Bounded)
+data DisasterPerson = DisasterPerson {
+    fullName :: String,
+    age :: Int,
+    gender :: String,
+    address :: Address,
+    disasterType :: String,
+    disasterDate :: String,
+    impactDescription :: String,
+    immediateNeeds :: [String],
+    insuranceDetails :: Maybe InsuranceDetails
+} deriving (Show)
 
--- Definição do tipo para Pessoa
-data DisasterPerson = DisasterPerson
-  { name :: String              -- Nome
-  , age :: Int                  -- Idade
-  , gender :: Gender            -- Gênero
-  , address :: String           -- Endereço (Rua, Cidade, Estado, País)
-  , disaster :: DisasterType    -- Tipo de Desastre
-  , disasterDate :: String      -- Data do Desastre
-  , impactDescription :: String -- Descrição do Impacto Pessoal
-  , immediateNeeds :: [String]  -- Necessidades Imediatas
-  , insuranceDetails :: String  -- Detalhes do Seguro
-  } deriving (Show)
+data Address = Address {
+    street :: String,
+    city :: String,
+    state :: String,
+    country :: String
+} deriving (Show)
 
--- Definição do tipo para Abrigo
-data Shelter = Shelter
-  { nomeAbrigo :: String        -- Nome do Abrigo
-  , cnpj :: String              -- CNPJ
-  , contatoAbrigo :: String     -- Contato do Abrigo
-  , qntAbrigados :: Int         -- Quantidade de abrigados
-  , qntMax :: Int               -- Capacidade máxima do Abrigo
-  , enderecoAbrigo :: String    -- Endereço do Abrigo
-  , qntDoacao :: Double         -- Quantidade de doações recebidas
-  , refeitorio :: Bool          -- Possui refeitório
-  , metodoDoacao :: String      -- Método de doação
-  , auxGovernoAbrigo :: Bool    -- Recebe algum auxílio do governo
-  } deriving (Show)
+data InsuranceDetails = InsuranceDetails {
+    insuranceType :: String,
+    policyNumber :: String
+} deriving (Show)
 
--- Definição de um tipo para armazenar registros de Pessoa
-type DisasterPersonRecord = [DisasterPerson]
+disasterTypes :: [String]
+disasterTypes = ["Terremoto", "Inundação", "Furacão", "Incêndio", "Tornado", "Tsunami"]
 
--- Definição de um tipo para armazenar registros de Abrigo
-type ShelterRecord = [Shelter]
+genderOptions :: [String]
+genderOptions = ["Masculino", "Feminino", "Outro"]
 
--- Função principal
+captureData :: IO DisasterPerson
+captureData = do
+    putStrLn "Digite o nome completo:"
+    name <- getLine
+    putStrLn "Digite a idade:"
+    age <- readAge
+    putStrLn "Selecione o gênero:"
+    mapM_ putStrLn (zipWith (\i t -> show i ++ ". " ++ t) [1..] genderOptions)
+    genderIndex <- readGenderIndex
+    let gender = genderOptions !! (genderIndex - 1)
+    address <- captureAddress
+    putStrLn "Selecione o tipo de desastre natural:"
+    mapM_ putStrLn (zipWith (\i t -> show i ++ ". " ++ t) [1..] disasterTypes)
+    disasterTypeIndex <- readDisasterTypeIndex
+    let disasterType = disasterTypes !! (disasterTypeIndex - 1)
+    putStrLn "Digite a data do desastre (formato: DD/MM/AAAA):"
+    disasterDate <- readDate
+    putStrLn "Descreva o impacto pessoal do desastre:"
+    impactDescription <- getLine
+    putStrLn "Digite as necessidades imediatas (separadas por vírgula):"
+    needs <- getLine
+    putStrLn "Possui detalhes do seguro? (S/N)"
+    hasInsurance <- getLine
+    insurance <- if hasInsurance == "S" || hasInsurance == "s"
+                    then Just <$> captureInsuranceDetails
+                    else return Nothing
+    return DisasterPerson {
+        fullName = name,
+        age = age,
+        gender = gender,
+        address = address,
+        disasterType = disasterType,
+        disasterDate = disasterDate,
+        impactDescription = impactDescription,
+        immediateNeeds = words needs,
+        insuranceDetails = insurance
+    }
+
+readAge :: IO Int
+readAge = do
+    ageStr <- getLine
+    case reads ageStr of
+        [(age, "")] | age >= 0 -> return age
+        _ -> do
+            putStrLn "Idade inválida! Digite novamente:"
+            readAge
+
+readGenderIndex :: IO Int
+readGenderIndex = do
+    indexStr <- getLine
+    case reads indexStr of
+        [(index, "")] | index >= 1 && index <= length genderOptions -> return index
+        _ -> do
+            putStrLn "Opção inválida! Digite novamente:"
+            readGenderIndex
+
+readDisasterTypeIndex :: IO Int
+readDisasterTypeIndex = do
+    indexStr <- getLine
+    case reads indexStr of
+        [(index, "")] | index >= 1 && index <= length disasterTypes -> return index
+        _ -> do
+            putStrLn "Opção inválida! Digite novamente:"
+            readDisasterTypeIndex
+
+captureAddress :: IO Address
+captureAddress = do
+    putStrLn "Digite o nome da rua:"
+    street <- getLine
+    putStrLn "Digite a cidade:"
+    city <- getLine
+    putStrLn "Digite o estado:"
+    state <- getLine
+    putStrLn "Digite o país:"
+    country <- getLine
+    return Address {
+        street = street,
+        city = city,
+        state = state,
+        country = country
+    }
+
+captureInsuranceDetails :: IO InsuranceDetails
+captureInsuranceDetails = do
+    putStrLn "Digite o tipo de seguro:"
+    insuranceType <- getLine
+    putStrLn "Digite o número da apólice:"
+    policyNumber <- getLine
+    return InsuranceDetails {
+        insuranceType = insuranceType,
+        policyNumber = policyNumber
+    }
+
+validateData :: DisasterPerson -> Bool
+validateData person = not (null (fullName person))
+
+readDate :: IO String
+readDate = do
+    dateStr <- getLine
+    if isValidDate dateStr
+        then return dateStr
+        else do
+            putStrLn "Formato de data inválido! Digite novamente (DD/MM/AAAA):"
+            readDate
+
+isValidDate :: String -> Bool
+isValidDate dateStr = length dateStr == 10 && all isDigit (take 2 dateStr) && dateStr !! 2 == '/' && all isDigit (take 2 (drop 3 dateStr)) && dateStr !! 5 == '/' && all isDigit (drop 6 dateStr)
+
+type Registry = [DisasterPerson]
+
+addRecord :: Registry -> DisasterPerson -> Registry
+addRecord registry person = person : registry
+
+listRecords :: Registry -> IO ()
+listRecords registry = mapM_ printPerson registry
+    where printPerson person = do
+            putStrLn "---------------------------"
+            putStrLn $ "Nome Completo: " ++ fullName person
+            putStrLn $ "Idade: " ++ show (age person)
+            putStrLn $ "Gênero: " ++ gender person
+            putStrLn "Endereço:"
+            putStrLn $ "Rua: " ++ street (address person)
+            putStrLn $ "Cidade: " ++ city (address person)
+            putStrLn $ "Estado: " ++ state (address person)
+            putStrLn $ "País: " ++ country (address person)
+            putStrLn $ "Tipo de Desastre: " ++ disasterType person
+            putStrLn $ "Data do Desastre: " ++ disasterDate person
+            putStrLn $ "Descrição do Impacto Pessoal: " ++ impactDescription person
+            putStrLn $ "Necessidades Imediatas: " ++ unwords (immediateNeeds person)
+            case insuranceDetails person of
+                Just details -> do
+                    putStrLn "Detalhes do Seguro:"
+                    putStrLn $ "Tipo de Seguro: " ++ insuranceType details
+                    putStrLn $ "Número da Apólice: " ++ policyNumber details
+                Nothing -> putStrLn "Detalhes do Seguro: Não informado"
+
+filterByDisasterType :: String -> Registry -> [DisasterPerson]
+filterByDisasterType dType = filter (\person -> disasterType person == dType)
+
+filterByDate :: String -> Registry -> [DisasterPerson]
+filterByDate dDate = filter (\person -> disasterDate person == dDate)
+
+filterByName :: String -> Registry -> [DisasterPerson]
+filterByName name = filter (\person -> fullName person == name)
+
 main :: IO ()
 main = do
-    putStrLn "Bem-vindo ao sistema de registro de desastres!"
-    putStrLn "Por favor, insira os dados da pessoa afetada pelo desastre:"
-    person <- capturePersonData
-    putStrLn "Pessoa cadastrada com sucesso!"
-    putStrLn "Agora, insira os dados do abrigo que está acolhendo vítimas do desastre:"
-    putStrLn "Abrigo cadastrado com sucesso!"
-    putStrLn "Obrigado por registrar as informações."
+    putStrLn "Bem-vindo ao formulário de registro de desastres naturais!"
+    registry <- menu []
+    putStrLn "Encerrando o programa..."
 
--- Função para capturar dados da Pessoa
-capturePersonData :: IO DisasterPerson
-capturePersonData = do
-    putStrLn "Nome:"
-    name <- getLine			-- Captura nome e armazena em "name"
-    putStrLn "Idade:"
-    ageStr <- getLine			-- Captura idade e armazena em "age"
-    let age = read ageStr :: Int
-    putStrLn "Gênero (Male, Female, Other):"
-    genderStr <- getLine		-- Captura o genero e armazena em "gender"
-    let gender = readGender genderStr
-    putStrLn "Endereço (Rua, Cidade, Estado, País):"
-    address <- getLine			-- Captura endereço e armazena em "address"
-    putStrLn "Tipo de Desastre Natural (Earthquake, Flood, Hurricane, OtherDisaster):"
-    disasterStr <- getLine		-- Captura qual o desastre e armazena em "disaster"
-    let disaster = readDisasterType disasterStr
-    putStrLn "Data do Desastre (AAAA-MM-DD):"
-    disasterDate <- getLine		-- Captura qual a data do desastre e armazena em "disasterDate"
-    putStrLn "Descrição do Impacto Pessoal:"
-    impactDescription <- getLine	-- Captura qual o impacto pessoal e armazena em "impactDescription"
-    putStrLn "Necessidades Imediatas (separadas por vírgula):"
-    immediateNeedsStr <- getLine	-- Captura qual as necessidades imediatas e armazena em "immediateNeedsStr"
-    let immediateNeeds = splitByComma immediateNeedsStr		-- Separando as palavras por vírgulas
-    putStrLn "Detalhes do Seguro:"
-    insuranceDetails <- getLine		-- Captura qual os detalhes do seguro e armazena em "insuranceDetails"
-    return DisasterPerson { name, age, gender, address, disaster, disasterDate, impactDescription, immediateNeeds, insuranceDetails }	-- Retorna a função "DisasterPerson" com todos os parametros inseridos
-
--- Função para capturar dados do Abrigo
-captureShelterData :: IO Shelter
-captureShelterData = do
-    putStrLn "Nome do Abrigo:"
-    nomeAbrigo <- getLine
-    putStrLn "CNPJ do Abrigo:"
-    cnpj <- getLine
-    putStrLn "Contato do Abrigo:"
-    contatoAbrigo <- getLine
-    putStrLn "Quantidade de abrigados:"
-    qntAbrigadosStr <- getLine
-    let qntAbrigados = read qntAbrigadosStr :: Int
-    putStrLn "Capacidade máxima do Abrigo:"
-    qntMaxStr <- getLine
-    let qntMax = read qntMaxStr :: Int
-    putStrLn "Endereço do Abrigo:"
-    enderecoAbrigo <- getLine
-    putStrLn "Quantidade de doações recebidas:"
-    qntDoacaoStr <- getLine
-    let qntDoacao = read qntDoacaoStr :: Double
-    putStrLn "Possui refeitório? (True/False):"
-    refeitorioStr <- getLine
-    let refeitorio = read refeitorioStr :: Bool
-    putStrLn "Método de doação:"
-    metodoDoacao <- getLine
-    putStrLn "Recebe algum auxílio do governo? (True/False):"
-    auxGovernoAbrigoStr <- getLine
-    let auxGovernoAbrigo = read auxGovernoAbrigoStr :: Bool
-    return Shelter { nomeAbrigo, cnpj, contatoAbrigo, qntAbrigados, qntMax, enderecoAbrigo, qntDoacao, refeitorio, metodoDoacao, auxGovernoAbrigo }
-
--- Função para validar e retornar um gênero
-readGender :: String -> Gender
-readGender str = case map toLower str of
-    "male" -> Male
-    "female" -> Female
-    "other" -> Other
-    _ -> error "Gênero inválido! Por favor, insira Male, Female ou Other."
-
--- Função para validar e retornar um tipo de desastre
-readDisasterType :: String -> DisasterType
-readDisasterType str = case map toLower str of
-    "earthquake" -> Earthquake
-    "flood" -> Flood
-    "hurricane" -> Hurricane
-    "otherdisaster" -> OtherDisaster
-    _ -> error "Tipo de desastre inválido! Por favor, insira Earthquake, Flood, Hurricane ou OtherDisaster."
-
--- Função para dividir uma string em uma lista de strings usando uma vírgula como delimitador
-splitByComma :: String -> [String]
-splitByComma = map (filter (/= ' ')) . split ','
-  where split _ [] = []
-        split delim str = let (before, remainder) = span (/= delim) str
-                          in before : case remainder of
+menu :: Registry -> IO Registry
+menu registry = do
+    putStrLn "\nEscolha uma opção:"
+    putStrLn "1. Adicionar novo registro"
+    putStrLn "2. Listar todos os registros"
+    putStrLn "3. Filtrar por tipo de desastre"
+    putStrLn "4. Filtrar por data"
+    putStrLn "5. Filtrar por nome"
+    putStrLn "6. Sair"
+    option <- getLine
+    case option of
+        "1" -> do
+            person <- captureData
+            if validateData person
+                then do
+                    putStrLn "Registro adicionado com sucesso!"
+                    menu (addRecord registry person)
+                else do
+                    putStrLn "Erro: Informações inválidas! O registro não foi adicionado."
+                    menu registry
+        "2" -> do
+            putStrLn "Lista de todos os registros:"
+            listRecords registry
+            menu registry
+        "3" -> do
+            putStrLn "Digite o tipo de desastre:"
+            dType <- getLine
+            let filteredByType = filterByDisasterType dType registry
+            putStrLn "Registros encontrados:"
+            listRecords filteredByType
+            menu registry
+        "4" -> do
+            putStrLn "Digite a data do desastre (formato: DD/MM/AAAA):"
+            dDate <- readDate
+            let filteredByDate = filterByDate dDate registry
+            putStrLn "Registros encontrados:"
+            listRecords filteredByDate
+            menu registry
+        "5" -> do
+            putStrLn "Digite o nome:"
+            name <- getLine
+            let filteredByName = filterByName name registry
+            putStrLn "Registros encontrados:"
+            listRecords filteredByName
+            menu registry
+        "6" -> return registry
+        _ -> do
+            putStrLn "Opção inválida! Por favor, escolha uma opção válida."
+            menu registry
