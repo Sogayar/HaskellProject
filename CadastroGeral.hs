@@ -1,81 +1,86 @@
 import Text.Read (readMaybe)
 import Data.Char (toLower)
-import Data.List (intercalate)
+import Text.Regex.Posix ((=~))
 
--- Definição do tipo para Gênero
-data Gender = Male | Female | Other deriving (Show, Read, Enum, Bounded)
+# As explicações das funções estão todas na documentação do projeto
 
--- Definição do tipo para Pessoa
-data Person = Person
-  { name :: String              -- Nome
-  , age :: Int                  -- Idade
-  , gender :: Gender            -- Gênero
-  , address :: String           -- Endereço (Rua, Cidade, Estado, CEP)
-  , email :: String             -- Email
-  , tel :: String               -- Telefone
-  } deriving (Show)
+data Person = Person { nomeCompleto :: String
+                     , idade :: Int
+                     , genero :: String
+                     , endereco :: String
+                     , email :: String
+                     , telefone :: String
+                     } deriving (Show)
 
--- Definição de um tipo para armazenar registros de Pessoa
-type PersonRecord = [Person]
+capturarIdade :: IO Int
+capturarIdade = do
+    putStrLn "Digite a idade:"
+    input <- getLine
+    case readMaybe input of
+        Just age | age >= 0 -> return age
+        _ -> do
+            putStrLn "Idade inválida. Por favor, digite novamente."
+            capturarIdade
 
--- Função principal
+capturarGenero :: IO String
+capturarGenero = do
+    putStrLn "Digite o gênero:"
+    input <- getLine
+    let generoLower = map toLower input
+    if generoLower `elem` ["masculino", "feminino", "outro"]
+        then return generoLower
+        else do
+            putStrLn "Gênero inválido. Por favor, digite novamente."
+            capturarGenero
+
+capturarInfo :: String -> (String -> Bool) -> IO String
+capturarInfo prompt validator = do
+    putStrLn prompt
+    input <- getLine
+    if validator input
+        then return input
+        else do
+            putStrLn "Entrada inválida. Por favor, digite novamente."
+            capturarInfo prompt validator
+
+validarEmail :: String -> Bool
+validarEmail email = email =~ ("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$" :: String)
+
+validarTelefone :: String -> Bool
+validarTelefone telefone = length telefone == 9 && all (\c -> c >= '0' && c <= '9') telefone
+
+capturarPessoa :: IO Person
+capturarPessoa = do
+    nome <- capturarInfo "Digite o nome completo:" (\_ -> True)
+    idade <- capturarIdade
+    genero <- capturarGenero
+    endereco <- capturarInfo "Digite o endereço (Rua, Cidade, Estado, País):" (\_ -> True)
+    email <- capturarInfo "Digite o email:" validarEmail
+    telefone <- capturarInfo "Digite o telefone:" validarTelefone
+    return $ Person nome idade genero endereco email telefone
+
+type Registro = [Person]
+
+listarRegistros :: Registro -> IO ()
+listarRegistros registros = mapM_ print registros
+
 main :: IO ()
 main = do
-    putStrLn "Bem-vindo ao sistema de cadastro!"
-    putStrLn "Por favor, insira os dados para o cadastro:" 	-- Fazer menu
-    person <- capturePersonData
-    putStrLn "Cadastro realizado com sucesso!"
-    putStrLn "Obrigado por se cadastrar."
+    putStrLn "Cadastro Geral"
+    putStrLn "Digite 'sair' a qualquer momento para encerrar o programa."
+    registros <- capturarRegistros []
+    putStrLn "Deseja listar todos os registros cadastrados? (sim/não)"
+    listarOpcao <- getLine
+    if map toLower listarOpcao == "sim"
+        then listarRegistros registros
+        else putStrLn "Programa encerrado."
 
--- Função para capturar dados da Pessoa
-capturePersonData :: IO Person
-capturePersonData = do
-    putStrLn "Nome Completo:"
-    name <- getLine 		-- Captura nome e armazena em "name"
-    putStrLn "Idade:"
-    ageStr <- getLine		-- Captura idade e armazena em "age"
-    let age = readAge ageStr
-    putStrLn "Gênero (Male, Female, Other):"
-    genderStr <- getLine	-- Captura o genero e armazena em "gender"
-    let gender = readGender genderStr
-    putStrLn "Endereço (Rua, Cidade, Estado, País):"
-    address <- getLine		-- Captura endereço e armazena em "address"
-    email <- promptWithValidation "Email:" validateEmail
-    putStrLn "Telefone:"	-- Captura telefone e armazena em "tel"
-    tel <- getLine
-    return Person { name, age, gender, address, email, tel } -- Retorna a função "Person" com todos os parametros inseridos
-
--- Função para validar e retornar uma idade (número inteiro)
-readAge :: String -> Int
-readAge str = case readMaybe str of		-- Função "if" 
-    Just age -> age
-    Nothing -> error "Idade inválida! Por favor, insira um número inteiro."	-- Como se fosse "else"
-
--- Função para validar e retornar um gênero
-readGender :: String -> Gender
-readGender str = case map toLower str of	-- Passa a aceitar respostas com começo minúsculo, pois sempre colocará a primeira letra em maiúsculo
-    "male" -> Male
-    "female" -> Female
-    "other" -> Other
-    _ -> error "Gênero inválido! Por favor, insira Male, Female ou Other."
-
--- Função para validar e retornar um email
-validateEmail :: String -> Either String String
-validateEmail email
-  | isValidEmail email = Right email
-  | otherwise = Left "Email inválido! Por favor, insira um email válido."		-- "Else"
-
--- Função para verificar se um email possui um formato básico válido
-isValidEmail :: String -> Bool
-isValidEmail email = '@' `elem` email && '.' `elem` (dropWhile (/= '@') email)
-
--- Função para solicitar entrada do usuário com validação
-promptWithValidation :: String -> (String -> Either String a) -> IO a
-promptWithValidation text validate = do
-    putStr text
-    input <- getLine
-    case validate input of
-        Left errorMsg -> do
-            putStrLn errorMsg
-            promptWithValidation text validate
-        Right value -> return value
+capturarRegistros :: Registro -> IO Registro
+capturarRegistros registros = do
+    cadastrar <- capturarPessoa
+    putStrLn "Registro cadastrado com sucesso!"
+    putStrLn "Deseja cadastrar outra pessoa? (sim/não)"
+    opcao <- getLine
+    if map toLower opcao == "sim"
+        then capturarRegistros (cadastrar:registros)
+        else return (cadastrar:registros)
